@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Product Price Intelligence System</title>
+    <!-- Google Font: Outfit -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(22, 27, 38, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --accent-color: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.15);
+            --success-color: #34d399;
+            --danger-color: #f87171;
+            --warning-color: #fbbf24;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0b0f19 70%);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: #ffffff !important;
+            text-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .navbar {
+            background-color: rgba(15, 23, 42, 0.8) !important;
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .nav-link {
+            color: var(--text-secondary) !important;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-radius: 6px;
+            padding: 8px 12px !important;
+            margin: 0 4px;
+        }
+
+        .nav-link.active, .nav-link:hover {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 6px 24px rgba(56, 189, 248, 0.08);
+        }
+
+        .card-header {
+            background-color: rgba(255, 255, 255, 0.01);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+        }
+
+        .stat-card {
+            padding: 24px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-color), var(--success-color));
+        }
+
+        .stat-val {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-top: 8px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .stat-lbl {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .table {
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+
+        .table th {
+            background-color: rgba(255, 255, 255, 0.03) !important;
+            color: #ffffff !important;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+        }
+
+        .table td {
+            background-color: transparent !important;
+            border-color: var(--border-color) !important;
+            vertical-align: middle;
+        }
+
+        .form-control, .form-select {
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            background-color: rgba(15, 23, 42, 0.8);
+            border-color: var(--accent-color);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .btn-primary {
+            background-color: #0284c7;
+            border-color: #0284c7;
+            font-weight: 500;
+            border-radius: 8px;
+        }
+
+        .btn-primary:hover {
+            background-color: #0369a1;
+            border-color: #0369a1;
+        }
+
+        .btn-success {
+            background-color: #059669;
+            border-color: #059669;
+            border-radius: 8px;
+        }
+
+        .btn-success:hover {
+            background-color: #047857;
+            border-color: #047857;
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.45);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .badge-lowest {
+            background-color: rgba(52, 211, 153, 0.15) !important;
+            color: #34d399 !important;
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+
+        .badge-highest {
+            background-color: rgba(248, 113, 113, 0.15) !important;
+            color: #f87171 !important;
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .modal-content {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            color: var(--text-primary);
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+        }
+
+        .quality-progress {
+            height: 6px;
+            border-radius: 3px;
+            background-color: rgba(255,255,255,0.05);
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#"><i class="bi bi-cpu-fill me-2 text-info"></i>PriceIntelligence</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link active" href="#" onclick="showTab('dashboard')"><i class="bi bi-speedometer2 me-1"></i> Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('crawl')"><i class="bi bi-cloud-arrow-up me-1"></i> Crawl</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('products')"><i class="bi bi-box-seam me-1"></i> Products</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('comparison')"><i class="bi bi-arrow-left-right me-1"></i> Price Comparison</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('alerts')"><i class="bi bi-bell-fill me-1"></i> Price Alerts</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('logs')"><i class="bi bi-terminal me-1"></i> Logs</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('export')"><i class="bi bi-download me-1"></i> Export</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('settings')"><i class="bi bi-gear-fill me-1"></i> Settings</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success me-2" id="db-status">Live</span>
+                    <button class="btn btn-outline-light btn-sm" onclick="fetchStats()"><i class="bi bi-arrow-clockwise"></i> Sync</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mb-5">
+        <!-- Dashboard Tab -->
+        <div id="tab-dashboard" class="tab-content">
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="stat-lbl">Total URLs</div>
+                        <div class="stat-val" id="stat-total-urls">-</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="stat-lbl">Successful URLs</div>
+                        <div class="stat-val text-success" id="stat-success-urls">-</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="stat-lbl">Failed URLs</div>
+                        <div class="stat-val text-danger" id="stat-failed-urls">-</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="stat-lbl">Total Products</div>
+                        <div class="stat-val" id="stat-total-products">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card stat-card">
+                        <div class="stat-lbl">Product Groups</div>
+                        <div class="stat-val text-info" id="stat-total-groups">-</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stat-card">
+                        <div class="stat-lbl">Lowest Price</div>
+                        <div class="stat-val text-success" id="stat-lowest-price">-</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stat-card">
+                        <div class="stat-lbl">Highest Price</div>
+                        <div class="stat-val text-danger" id="stat-highest-price">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-12">
+                    <div class="card glass-panel text-center">
+                        <h2 class="mb-3">Universal Price Intelligence</h2>
+                        <p class="text-secondary mb-4">Fully automated, AI-powered system designed to scrape product listings, resolve identities, compare prices, and alert when targets are met.</p>
+                        <div class="d-flex justify-content-center gap-3">
+                            <button class="btn btn-primary btn-lg" onclick="showTab('crawl')"><i class="bi bi-play-circle me-2"></i>Start Crawler</button>
+                            <button class="btn btn-outline-light btn-lg" onclick="showTab('comparison')"><i class="bi bi-arrow-left-right me-2"></i>Compare Prices</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Crawl Tab -->
+        <div id="tab-crawl" class="tab-content" style="display: none;">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card p-4">
+                        <h4>Batch Upload URLs</h4>
+                        <p class="text-secondary">Upload a `.txt` file containing list of target URLs (one per line).</p>
+                        <form id="crawl-form" onsubmit="submitCrawl(event)">
+                            <div class="mb-3">
+                                <label for="url-file" class="form-label">Select urls.txt</label>
+                                <input class="form-control" type="file" id="url-file" accept=".txt" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="concurrency-range" class="form-label">Concurrency Level: <span id="concurrency-val">20</span></label>
+                                <input type="range" class="form-range" min="10" max="100" step="10" value="20" id="concurrency-range" oninput="document.getElementById('concurrency-val').innerText = this.value">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-rocket-takeoff me-1"></i> Start Crawl Pipeline</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card p-4">
+                        <h4>Single URL Prober</h4>
+                        <p class="text-secondary">Crawl and test a single e-commerce page immediately.</p>
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="single-url" placeholder="https://example.com/product/...">
+                        </div>
+                        <button class="btn btn-outline-info w-100" onclick="probeSingleUrl()"><i class="bi bi-search me-1"></i> Probe URL</button>
+                        <div id="single-probe-result" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Tab -->
+        <div id="tab-products" class="tab-content" style="display: none;">
+            <div class="card p-4">
+                <div class="row g-3 mb-3 align-items-center">
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" id="product-search" placeholder="Search raw products by name, model, SKU, barcode..." oninput="fetchProducts()">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="product-website" onchange="fetchProducts()">
+                            <option value="">All Websites</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" id="product-sort" onchange="fetchProducts()">
+                            <option value="newest">Newest Crawled</option>
+                            <option value="lowest_price">Lowest Price</option>
+                            <option value="highest_price">Highest Price</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Name</th>
+                                <th>Model/SKU</th>
+                                <th>Barcode</th>
+                                <th>Website</th>
+                                <th>Final Price</th>
+                                <th>Quality Score</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="products-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Tab -->
+        <div id="tab-comparison" class="tab-content" style="display: none;">
+            <div class="card p-4">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-8">
+                        <input type="text" class="form-control" id="compare-search" placeholder="Search product matches..." oninput="fetchComparison()">
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" id="compare-sort" onchange="fetchComparison()">
+                            <option value="largest_diff">Largest Price Difference</option>
+                            <option value="lowest_price">Lowest Price</option>
+                            <option value="highest_price">Highest Price</option>
+                            <option value="most_stores">Most Stores</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Product Group</th>
+                                <th>Model</th>
+                                <th>Lowest Price</th>
+                                <th>Highest Price</th>
+                                <th>Difference</th>
+                                <th>Diff %</th>
+                                <th>Stores</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="compare-table-body" style="cursor: pointer;">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Price Alerts Tab -->
+        <div id="tab-alerts" class="tab-content" style="display: none;">
+            <div class="card p-4">
+                <h4>Active Price Alerts</h4>
+                <p class="text-secondary">Get notified automatically when matching items drop below target prices.</p>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Product Group</th>
+                                <th>Target Price</th>
+                                <th>Channels</th>
+                                <th>Status</th>
+                                <th>Created At</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alerts-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div id="tab-logs" class="tab-content" style="display: none;">
+            <div class="card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4>Crawl & Scraper Logs</h4>
+                    <button class="btn btn-outline-danger btn-sm" onclick="clearFailedUrls()"><i class="bi bi-trash"></i> Reset Failed URLs</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>URL</th>
+                                <th>Mode</th>
+                                <th>Status</th>
+                                <th>Items</th>
+                                <th>Time (s)</th>
+                                <th>Error</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Tab -->
+        <div id="tab-export" class="tab-content" style="display: none;">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="card p-4 text-center">
+                        <i class="bi bi-file-earmark-excel text-success" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3">Excel Reports</h5>
+                        <p class="text-secondary small">Download multi-sheet analyses containing raw data, groupings, deals, differences and stats.</p>
+                        <div class="d-grid gap-2">
+                            <a href="/export/excel" class="btn btn-success"><i class="bi bi-download"></i> Grouped Report</a>
+                            <a href="/export/raw/excel" class="btn btn-outline-success"><i class="bi bi-download"></i> Raw Products</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card p-4 text-center">
+                        <i class="bi bi-file-earmark-spreadsheet text-info" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3">CSV Formats</h5>
+                        <p class="text-secondary small">Retrieve text database formats for importing into local storage/data pipeline engines.</p>
+                        <div class="d-grid gap-2">
+                            <a href="/export/compare/csv" class="btn btn-info text-white"><i class="bi bi-download"></i> Grouped CSV</a>
+                            <a href="/export/csv" class="btn btn-outline-info"><i class="bi bi-download"></i> Raw CSV</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card p-4 text-center">
+                        <i class="bi bi-filetype-json text-warning" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3">JSON Comparison</h5>
+                        <p class="text-secondary small">Direct nested structure matching models, names, and stores arrays.</p>
+                        <a href="/export/compare/json" class="btn btn-warning w-100"><i class="bi bi-download"></i> Export JSON</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="tab-settings" class="tab-content" style="display: none;">
+            <div class="card p-4">
+                <h4>System Configurations</h4>
+                <p class="text-secondary">Manage global anti-blocking proxy parameters and alert notification credentials.</p>
+                
+                <form id="settings-form" onsubmit="saveSettings(event)">
+                    <div class="row g-3 mb-4">
+                        <h5 class="text-info border-bottom pb-2">Anti-Blocking Proxy Configuration</h5>
+                        <div class="col-md-8">
+                            <label class="form-label">Proxy Host/IP</label>
+                            <input type="text" class="form-control" id="setting-proxy_host" placeholder="e.g. proxy.residential.com">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Proxy Port</label>
+                            <input type="text" class="form-control" id="setting-proxy_port" placeholder="e.g. 5000">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Proxy Username</label>
+                            <input type="text" class="form-control" id="setting-proxy_user">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Proxy Password</label>
+                            <input type="password" class="form-control" id="setting-proxy_pass">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="setting-residential_proxy_enabled">
+                                <label class="form-check-label" for="setting-residential_proxy_enabled">Prioritize Residential Proxies</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <h5 class="text-info border-bottom pb-2">Global Notifications Dispatch Credentials</h5>
+                        <div class="col-md-6">
+                            <label class="form-label">Telegram Bot Token</label>
+                            <input type="text" class="form-control" id="setting-telegram_bot_token" placeholder="token string">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Telegram Chat ID</label>
+                            <input type="text" class="form-control" id="setting-telegram_chat_id" placeholder="chat ID number">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Discord Webhook URL</label>
+                            <input type="text" class="form-control" id="setting-discord_webhook" placeholder="https://discord.com/api/webhooks/...">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Generic Webhook Target URL</label>
+                            <input type="text" class="form-control" id="setting-webhook_url" placeholder="https://api.yourdomain.com/alert-endpoint">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Notification Email Address</label>
+                            <input type="email" class="form-control" id="setting-email" placeholder="client@email.com">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-save me-1"></i> Save Configurations</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Group Compare Modal -->
+    <div class="modal fade" id="compareModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modal-product-name">Product Group Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Left Side: Stores table & Alerts creation -->
+                        <div class="col-lg-7">
+                            <h6>Store Listings & Prices</h6>
+                            <div class="table-responsive mb-4" style="max-height: 300px;">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Store</th>
+                                            <th>Price</th>
+                                            <th>Detail Link</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="modal-stores-body">
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="card p-3 border-secondary">
+                                <h6>Set Price Alert for this Product Group</h6>
+                                <form id="alert-form" onsubmit="submitAlert(event)">
+                                    <input type="hidden" id="alert-group-id">
+                                    <div class="row g-2">
+                                        <div class="col-sm-6">
+                                            <input type="number" class="form-control" id="alert-target-price" placeholder="Target Price (VND)" required>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <input type="email" class="form-control" id="alert-email" placeholder="Recipient Email (Optional)">
+                                        </div>
+                                        <div class="col-sm-12">
+                                            <input type="text" class="form-control" id="alert-telegram-chat" placeholder="Telegram Chat ID (Overrides global configuration)">
+                                        </div>
+                                        <div class="col-12 mt-2">
+                                            <button type="submit" class="btn btn-success btn-sm w-100"><i class="bi bi-bell-plus"></i> Activate Alert</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Trend chart -->
+                        <div class="col-lg-5">
+                            <h6>Price History Trend</h6>
+                            <div style="height: 300px; background-color: rgba(255,255,255,0.02); border-radius: 8px; padding: 10px;">
+                                <canvas id="trendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let trendChartInstance = null;
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById('tab-' + tabId).style.display = 'block';
+            
+            // Highlight active nav item
+            const navLinks = document.querySelectorAll('.nav-link');
+            navLinks.forEach(link => {
+                if (link.getAttribute('onclick') && link.getAttribute('onclick').includes(tabId)) {
+                    link.classList.add('active');
+                }
+            });
+            
+            if (tabId === 'dashboard') fetchStats();
+            if (tabId === 'products') fetchProducts();
+            if (tabId === 'comparison') fetchComparison();
+            if (tabId === 'alerts') fetchAlerts();
+            if (tabId === 'logs') fetchLogs();
+            if (tabId === 'settings') loadSettings();
+        }
+
+        async function fetchStats() {
+            try {
+                const res = await fetch('/stats');
+                const data = await res.json();
+                document.getElementById('stat-total-urls').innerText = data.total_urls;
+                document.getElementById('stat-success-urls').innerText = data.success_urls;
+                document.getElementById('stat-failed-urls').innerText = data.failed_urls;
+                document.getElementById('stat-total-products').innerText = data.total_products;
+                document.getElementById('stat-total-groups').innerText = data.total_groups;
+                document.getElementById('stat-lowest-price').innerText = formatVND(data.lowest_price);
+                document.getElementById('stat-highest-price').innerText = formatVND(data.highest_price);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function submitCrawl(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('url-file');
+            const concurrency = document.getElementById('concurrency-range').value;
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('concurrency', concurrency);
+            
+            try {
+                const res = await fetch('/crawl-batch', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                alert(`Batch queued successfully! Total URLs: ${data.total_urls}`);
+                showTab('logs');
+            } catch (err) {
+                alert('Failed to initiate batch crawl pipeline.');
+            }
+        }
+
+        async function probeSingleUrl() {
+            const url = document.getElementById('single-url').value;
+            const resPanel = document.getElementById('single-probe-result');
+            resPanel.innerHTML = `<div class="spinner-border text-info" role="status"><span class="visually-hidden">Loading...</span></div>`;
+            
+            try {
+                const res = await fetch(`/crawl?url=${encodeURIComponent(url)}`, { method: 'POST' });
+                const data = await res.json();
+                resPanel.innerHTML = `<div class="alert alert-success">Probe started for URL successfully. Check products panel shortly.</div>`;
+            } catch (err) {
+                resPanel.innerHTML = `<div class="alert alert-danger">Error starting probe.</div>`;
+            }
+        }
+
+        async function fetchProducts() {
+            const search = document.getElementById('product-search').value;
+            const website = document.getElementById('product-website').value;
+            const sortBy = document.getElementById('product-sort').value;
+            
+            try {
+                const res = await fetch(`/products?search=${encodeURIComponent(search)}&website=${encodeURIComponent(website)}&sort_by=${sortBy}`);
+                const data = await res.json();
+                
+                const tbody = document.getElementById('products-table-body');
+                tbody.innerHTML = '';
+                
+                // Populate website dropdown if it's currently empty
+                const websiteSelect = document.getElementById('product-website');
+                if (websiteSelect.options.length <= 1) {
+                    const websitesSet = new Set(data.map(p => p.website));
+                    websitesSet.forEach(ws => {
+                        const opt = document.createElement('option');
+                        opt.value = ws;
+                        opt.innerText = ws;
+                        websiteSelect.appendChild(opt);
+                    });
+                }
+                
+                data.forEach(p => {
+                    const progressColor = p.data_quality_score >= 80 ? 'bg-success' : p.data_quality_score >= 50 ? 'bg-warning' : 'bg-danger';
+                    const row = `
+                        <tr>
+                            <td><img src="${p.image || 'https://via.placeholder.com/50'}" width="50" style="object-fit:cover; border-radius:4px; aspect-ratio: 1/1;"></td>
+                            <td><strong>${p.name}</strong><br><small class="text-secondary">${p.brand || 'No Brand'}</small></td>
+                            <td><span class="badge bg-secondary">${p.model || 'N/A'}</span><br><span class="small text-secondary">${p.sku || ''}</span></td>
+                            <td><small>${p.barcode || 'N/A'}</small></td>
+                            <td><span class="text-info">${p.website}</span></td>
+                            <td><strong class="text-success">${formatVND(p.final_price)}</strong></td>
+                            <td>
+                                <div class="small mb-1">${p.data_quality_score}%</div>
+                                <div class="progress quality-progress">
+                                    <div class="progress-bar ${progressColor}" role="progressbar" style="width: ${p.data_quality_score}%"></div>
+                                </div>
+                            </td>
+                            <td><a href="${p.url}" target="_blank" class="btn btn-sm btn-outline-light"><i class="bi bi-box-arrow-up-right"></i></a></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function fetchComparison() {
+            const search = document.getElementById('compare-search').value;
+            const sortBy = document.getElementById('compare-sort').value;
+            
+            try {
+                const res = await fetch(`/comparison?search=${encodeURIComponent(search)}&sort_by=${sortBy}`);
+                const data = await res.json();
+                
+                const tbody = document.getElementById('compare-table-body');
+                tbody.innerHTML = '';
+                
+                data.forEach(c => {
+                    const row = `
+                        <tr onclick="openCompareModal(${c.group_id}, '${escapeHtml(c.product_name)}', '${escapeHtml(c.model || 'N/A')}', ${c.lowest_price}, ${c.highest_price})">
+                            <td><strong>${c.product_name}</strong><br><small class="text-secondary">${c.brand || 'No Brand'}</small></td>
+                            <td><span class="badge bg-secondary">${c.model || 'N/A'}</span></td>
+                            <td><span class="badge badge-lowest">${formatVND(c.lowest_price)}</span></td>
+                            <td><span class="badge badge-highest">${formatVND(c.highest_price)}</span></td>
+                            <td class="text-warning"><strong>${formatVND(c.price_difference)}</strong></td>
+                            <td class="text-danger">${c.difference_percent}%</td>
+                            <td><span class="badge bg-dark">${c.store_count} stores</span></td>
+                            <td><button class="btn btn-sm btn-info text-white"><i class="bi bi-eye"></i> Details</button></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function openCompareModal(groupId, productName, model, minPrice, maxPrice) {
+            document.getElementById('modal-product-name').innerText = `${productName} (Model: ${model})`;
+            document.getElementById('alert-group-id').value = groupId;
+            document.getElementById('alert-target-price').value = Math.round(minPrice * 0.95); // default to 5% below lowest
+            
+            const modalBody = document.getElementById('modal-stores-body');
+            modalBody.innerHTML = '<tr><td colspan="3" class="text-center">Loading details...</td></tr>';
+            
+            const myModal = new bootstrap.Modal(document.getElementById('compareModal'));
+            myModal.show();
+            
+            try {
+                // Fetch group detail listings
+                const res = await fetch('/products');
+                const products = await res.json();
+                // Find products mapped to this group via a mapping check (currently matching on model or embedding/fuzzy similarity)
+                // We'll fetch comparison data structure containing stores
+                const compRes = await fetch(`/comparison?search=${encodeURIComponent(model === 'N/A' ? productName : model)}`);
+                const compareList = await compRes.json();
+                const currentGroup = compareList.find(x => x.group_id === groupId);
+                
+                modalBody.innerHTML = '';
+                
+                // Let's query products_raw that correspond to this grouped product
+                // Since comparison payload doesn't return nested stores directly in the main endpoints, 
+                // we'll fetch from the comparison/json endpoint or filter raw products matching the model/name.
+                const jsonRes = await fetch('/export/compare/json');
+                const compareJson = await jsonRes.json();
+                const matchedGroup = compareJson.find(x => x.product_name === productName || x.model === model);
+                
+                if (matchedGroup && matchedGroup.stores) {
+                    matchedGroup.stores.forEach(store => {
+                        let rowClass = '';
+                        if (store.final_price === minPrice) rowClass = 'table-success-dark';
+                        if (store.final_price === maxPrice && minPrice !== maxPrice) rowClass = 'table-danger-dark';
+                        
+                        const row = `
+                            <tr class="${rowClass}">
+                                <td><strong>${store.website}</strong><br><small class="text-secondary">${store.name}</small></td>
+                                <td><strong class="text-success">${formatVND(store.final_price)}</strong></td>
+                                <td><a href="${store.url}" target="_blank" class="btn btn-xs btn-outline-light"><i class="bi bi-box-arrow-up-right"></i> Link</a></td>
+                            </tr>
+                        `;
+                        modalBody.innerHTML += row;
+                    });
+                } else {
+                    modalBody.innerHTML = '<tr><td colspan="3" class="text-center">No individual store details found.</td></tr>';
+                }
+                
+                // Render Price Trend Chart
+                renderPriceTrend(groupId);
+                
+            } catch (err) {
+                console.error(err);
+                modalBody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Failed to retrieve store list.</td></tr>';
+            }
+        }
+
+        async function renderPriceTrend(groupId) {
+            try {
+                const res = await fetch(`/price-history/${groupId}`);
+                const history = await res.json();
+                
+                const ctx = document.getElementById('trendChart').getContext('2d');
+                
+                if (trendChartInstance) {
+                    trendChartInstance.destroy();
+                }
+                
+                if (history.length === 0) {
+                    trendChartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['No Data'],
+                            datasets: [{
+                                label: 'Price (VND)',
+                                data: [0],
+                                borderColor: '#38bdf8',
+                                tension: 0.1
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false }
+                    });
+                    return;
+                }
+                
+                // Sort history by date
+                history.sort((a,b) => new Date(a.crawl_date) - new Date(b.crawl_date));
+                
+                // Group by website/store to draw multiple lines or draw lowest price overall
+                const dates = [...new Set(history.map(h => h.crawl_date))];
+                
+                // We'll draw overall lowest price over time
+                const dataPoints = [];
+                dates.forEach(d => {
+                    const pricesOnDate = history.filter(h => h.crawl_date === d).map(h => h.price);
+                    dataPoints.push(Math.min(...pricesOnDate));
+                });
+                
+                trendChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: 'Cheapest Price (VND)',
+                            data: dataPoints,
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                            fill: true,
+                            tension: 0.2,
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#0284c7'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true, labels: { color: '#e2e8f0' } }
+                        },
+                        scales: {
+                            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+                
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function submitAlert(e) {
+            e.preventDefault();
+            const groupId = document.getElementById('alert-group-id').value;
+            const targetPrice = document.getElementById('alert-target-price').value;
+            const email = document.getElementById('alert-email').value;
+            const telegramChat = document.getElementById('alert-telegram-chat').value;
+            
+            try {
+                const res = await fetch('/alerts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        grouped_id: parseInt(groupId),
+                        target_price: parseFloat(targetPrice),
+                        email: email || null,
+                        telegram_chat_id: telegramChat || null
+                    })
+                });
+                const data = await res.json();
+                alert('Price Alert activated successfully!');
+                bootstrap.Modal.getInstance(document.getElementById('compareModal')).hide();
+                showTab('alerts');
+            } catch (err) {
+                alert('Failed to save alert.');
+            }
+        }
+
+        async function fetchAlerts() {
+            try {
+                const res = await fetch('/alerts');
+                const data = await res.json();
+                const tbody = document.getElementById('alerts-table-body');
+                tbody.innerHTML = '';
+                
+                data.forEach(a => {
+                    const channels = [];
+                    if (a.email) channels.push('<span class="badge bg-secondary">Email</span>');
+                    if (a.telegram_chat_id) channels.push('<span class="badge bg-info">Telegram</span>');
+                    if (a.discord_webhook) channels.push('<span class="badge bg-primary">Discord</span>');
+                    if (a.webhook_url) channels.push('<span class="badge bg-dark">Webhook</span>');
+                    
+                    const statusClass = a.status === 'active' ? 'bg-success' : 'bg-warning';
+                    
+                    const row = `
+                        <tr>
+                            <td><strong>${a.product_name}</strong></td>
+                            <td><strong class="text-info">${formatVND(a.target_price)}</strong></td>
+                            <td>${channels.join(' ') || '<span class="badge bg-light text-dark">Global defaults</span>'}</td>
+                            <td><span class="badge ${statusClass}">${a.status}</span></td>
+                            <td><small>${a.created_at}</small></td>
+                            <td><button class="btn btn-sm btn-outline-danger" onclick="deleteAlert(${a.id})"><i class="bi bi-trash"></i></button></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function deleteAlert(id) {
+            if (!confirm('Are you sure you want to delete this alert?')) return;
+            try {
+                await fetch(`/alerts/${id}`, { method: 'DELETE' });
+                fetchAlerts();
+            } catch (err) {
+                alert('Failed to delete alert.');
+            }
+        }
+
+        async function fetchLogs() {
+            try {
+                const res = await fetch('/logs');
+                const data = await res.json();
+                
+                const tbody = document.getElementById('logs-table-body');
+                tbody.innerHTML = '';
+                
+                data.forEach(l => {
+                    const badgeClass = l.status === 'success' ? 'bg-success' : 'bg-danger';
+                    const row = `
+                        <tr>
+                            <td><small>${l.timestamp}</small></td>
+                            <td><small class="text-secondary">${l.url}</small></td>
+                            <td><span class="badge bg-info">${l.mode}</span></td>
+                            <td><span class="badge ${badgeClass}">${l.status}</span></td>
+                            <td>${l.products_found}</td>
+                            <td>${l.execution_time ? l.execution_time.toFixed(2) : '-'}</td>
+                            <td><small class="text-danger">${l.error_message || ''}</small></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function clearFailedUrls() {
+            if (!confirm('Are you sure you want to clear failed logs and retry list?')) return;
+            try {
+                const res = await fetch('/failed', { method: 'DELETE' });
+                if (res.ok) {
+                    alert('Failed URL retry list cleared and reset.');
+                    fetchLogs();
+                    fetchStats();
+                } else {
+                    alert('Failed to clear retry list.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Failed to connect to server.');
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                const res = await fetch('/settings');
+                const data = await res.json();
+                
+                for (let key in data) {
+                    const el = document.getElementById(`setting-${key}`);
+                    if (el) {
+                        if (el.type === 'checkbox') {
+                            el.checked = data[key] === 'True' || data[key] === 'true' || data[key] === true;
+                        } else {
+                            el.value = data[key];
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function saveSettings(e) {
+            e.preventDefault();
+            const keys = [
+                'proxy_host', 'proxy_port', 'proxy_user', 'proxy_pass', 
+                'residential_proxy_enabled', 'telegram_bot_token', 
+                'telegram_chat_id', 'discord_webhook', 'webhook_url', 'email'
+            ];
+            
+            const settingsObj = {};
+            keys.forEach(k => {
+                const el = document.getElementById(`setting-${k}`);
+                if (el) {
+                    if (el.type === 'checkbox') {
+                        settingsObj[k] = el.checked ? 'true' : 'false';
+                    } else {
+                        settingsObj[k] = el.value.strip ? el.value.strip() : el.value;
+                    }
+                }
+            });
+            
+            try {
+                const res = await fetch('/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ settings: settingsObj })
+                });
+                alert('Settings saved successfully!');
+            } catch (err) {
+                alert('Failed to save settings.');
+            }
+        }
+
+        function formatVND(val) {
+            if (!val) return '0 đ';
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // Init
+        fetchStats();
+    </script>
+</body>
+</html>

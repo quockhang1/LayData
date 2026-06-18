@@ -1,0 +1,13 @@
+fastapi[standard]
+uvicorn
+requests
+beautifulsoup4
+playwright
+pandas
+numpy
+rapidfuzz
+openpyxl
+sentence-transformers
+jinja2
+python-multipart
+aiohttp
