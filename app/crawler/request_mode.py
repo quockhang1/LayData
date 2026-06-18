@@ -37,6 +37,25 @@ def fetch_with_requests(url: str, retries: int = 3, backoff_factor: float = 1.5)
             # Rotate headers to reduce blocking
             session.headers.update(get_random_headers())
             
+            # Setup proxy dynamically
+            from app.crawler.anti_blocking import get_proxy_config
+            proxy_cfg = get_proxy_config()
+            if proxy_cfg:
+                host = proxy_cfg["host"]
+                port = proxy_cfg["port"]
+                user = proxy_cfg["user"]
+                pwd = proxy_cfg["pass"]
+                if user and pwd:
+                    proxy_str = f"http://{user}:{pwd}@{host}:{port}"
+                else:
+                    proxy_str = f"http://{host}:{port}"
+                session.proxies = {
+                    "http": proxy_str,
+                    "https": proxy_str
+                }
+            else:
+                session.proxies = {}
+            
             response = session.get(url, timeout=15, allow_redirects=True)
             
             if response.status_code in status_codes_to_retry:

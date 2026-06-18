@@ -239,7 +239,8 @@
                 </ul>
                 <div class="d-flex align-items-center">
                     <span class="badge bg-success me-2" id="db-status">Live</span>
-                    <button class="btn btn-outline-light btn-sm" onclick="fetchStats()"><i class="bi bi-arrow-clockwise"></i> Sync</button>
+                    <button class="btn btn-outline-light btn-sm me-2" onclick="fetchStats()"><i class="bi bi-arrow-clockwise"></i> Sync</button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="clearAllData()"><i class="bi bi-trash"></i> Clear All</button>
                 </div>
             </div>
         </div>
@@ -294,6 +295,18 @@
                         <div class="stat-val text-danger" id="stat-highest-price">-</div>
                     </div>
                 </div>
+            </div>
+            
+            <!-- Live Progress Section -->
+            <div id="live-progress-panel" class="card p-3 mb-4" style="display: none; border-color: var(--accent-color); background: rgba(15, 23, 42, 0.45);">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                    <h5 class="m-0 text-info">Live Crawl Progress</h5>
+                </div>
+                <div class="mt-2 small text-secondary">Currently crawling the following URLs:</div>
+                <ul id="live-running-urls" class="list-group list-group-flush mt-2" style="background: transparent;">
+                    <!-- Populated dynamically -->
+                </ul>
             </div>
             
             <div class="row">
@@ -678,6 +691,19 @@
                 document.getElementById('stat-total-groups').innerText = data.total_groups;
                 document.getElementById('stat-lowest-price').innerText = formatVND(data.lowest_price);
                 document.getElementById('stat-highest-price').innerText = formatVND(data.highest_price);
+                
+                // Live Progress Handling
+                const progressPanel = document.getElementById('live-progress-panel');
+                const runningList = document.getElementById('live-running-urls');
+                if (data.running_urls && data.running_urls.length > 0) {
+                    progressPanel.style.display = 'block';
+                    runningList.innerHTML = '';
+                    data.running_urls.forEach(url => {
+                        runningList.innerHTML += `<li class="list-group-item text-truncate text-info bg-transparent border-0 py-1" style="font-family: monospace; font-size: 0.85rem;"><i class="bi bi-arrow-right-short me-1"></i>${escapeHtml(url)}</li>`;
+                    });
+                } else {
+                    progressPanel.style.display = 'none';
+                }
             } catch (err) {
                 console.error(err);
             }
@@ -745,14 +771,17 @@
                 
                 data.forEach(p => {
                     const progressColor = p.data_quality_score >= 80 ? 'bg-success' : p.data_quality_score >= 50 ? 'bg-warning' : 'bg-danger';
+                    const priceHtml = p.price && p.price > p.final_price ? 
+                        `<del class="text-secondary small me-2">${formatVND(p.price)}</del><strong class="text-success">${formatVND(p.final_price)}</strong><br><span class="badge bg-danger" style="font-size:0.7rem;">Ưu đãi</span>` : 
+                        `<strong class="text-success">${formatVND(p.final_price)}</strong>`;
                     const row = `
                         <tr>
-                            <td><img src="${p.image || 'https://via.placeholder.com/50'}" width="50" style="object-fit:cover; border-radius:4px; aspect-ratio: 1/1;"></td>
-                            <td><strong>${p.name}</strong><br><small class="text-secondary">${p.brand || 'No Brand'}</small></td>
+                            <td><a href="${p.url}" target="_blank"><img src="${p.image || 'https://via.placeholder.com/50'}" width="50" style="object-fit:cover; border-radius:4px; aspect-ratio: 1/1;"></a></td>
+                            <td><a href="${p.url}" target="_blank" class="text-decoration-none text-light"><strong>${p.name}</strong></a><br><small class="text-secondary">${p.brand || 'No Brand'}</small></td>
                             <td><span class="badge bg-secondary">${p.model || 'N/A'}</span><br><span class="small text-secondary">${p.sku || ''}</span></td>
                             <td><small>${p.barcode || 'N/A'}</small></td>
-                            <td><span class="text-info">${p.website}</span></td>
-                            <td><strong class="text-success">${formatVND(p.final_price)}</strong></td>
+                            <td><a href="${p.url}" target="_blank" class="text-info text-decoration-none"><strong>${p.website}</strong></a></td>
+                            <td>${priceHtml}</td>
                             <td>
                                 <div class="small mb-1">${p.data_quality_score}%</div>
                                 <div class="progress quality-progress">
@@ -836,10 +865,14 @@
                         if (store.final_price === minPrice) rowClass = 'table-success-dark';
                         if (store.final_price === maxPrice && minPrice !== maxPrice) rowClass = 'table-danger-dark';
                         
+                        const priceHtml = store.price && store.price > store.final_price ? 
+                            `<del class="text-secondary small me-2">${formatVND(store.price)}</del><strong class="text-success">${formatVND(store.final_price)}</strong><br><span class="badge bg-danger" style="font-size:0.7rem;">Ưu đãi</span>` : 
+                            `<strong class="text-success">${formatVND(store.final_price)}</strong>`;
+                        
                         const row = `
                             <tr class="${rowClass}">
-                                <td><strong>${store.website}</strong><br><small class="text-secondary">${store.name}</small></td>
-                                <td><strong class="text-success">${formatVND(store.final_price)}</strong></td>
+                                <td><a href="${store.url}" target="_blank" class="text-decoration-none text-light"><strong>${store.website}</strong></a><br><small class="text-secondary"><a href="${store.url}" target="_blank" class="text-decoration-none text-secondary">${store.name}</a></small></td>
+                                <td>${priceHtml}</td>
                                 <td><a href="${store.url}" target="_blank" class="btn btn-xs btn-outline-light"><i class="bi bi-box-arrow-up-right"></i> Link</a></td>
                             </tr>
                         `;
@@ -1048,6 +1081,40 @@
             }
         }
 
+        async function clearAllData() {
+            if (!confirm('Are you sure you want to clear ALL database tables and report files? This action cannot be undone.')) return;
+            try {
+                const res = await fetch('/clear-all', { method: 'DELETE' });
+                if (res.ok) {
+                    alert('All data cleared successfully.');
+                    // Refresh current view
+                    fetchStats();
+                    // If logs tab is open, refresh it
+                    const logsTab = document.getElementById('tab-logs');
+                    if (logsTab && logsTab.style.display !== 'none') {
+                        fetchLogs();
+                    }
+                    // If products tab is open, refresh it
+                    const productsTab = document.getElementById('tab-products');
+                    if (productsTab && productsTab.style.display !== 'none') {
+                        fetchProducts();
+                    }
+                    // If comparison tab is open, refresh it
+                    const compareTab = document.getElementById('tab-comparison');
+                    if (compareTab && compareTab.style.display !== 'none') {
+                        fetchComparison();
+                    }
+                    // Go to dashboard
+                    showTab('dashboard');
+                } else {
+                    alert('Failed to clear all data.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Failed to connect to server.');
+            }
+        }
+
         async function loadSettings() {
             try {
                 const res = await fetch('/settings');
@@ -1110,8 +1177,40 @@
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
 
+        async function clearAllDataSilently() {
+            try {
+                await fetch('/clear-all', { method: 'DELETE' });
+            } catch (err) {
+                console.error('Failed to clear data on load:', err);
+            } finally {
+                fetchStats();
+            }
+        }
+
+        function startAutoRefresh() {
+            setInterval(() => {
+                // Check if the current tab is dashboard, products, comparison, or logs and refresh
+                const activeLink = document.querySelector('.nav-link.active');
+                if (activeLink) {
+                    const clickAttr = activeLink.getAttribute('onclick');
+                    if (clickAttr) {
+                        if (clickAttr.includes('dashboard')) fetchStats();
+                        if (clickAttr.includes('products')) fetchProducts();
+                        if (clickAttr.includes('comparison')) fetchComparison();
+                        if (clickAttr.includes('logs')) fetchLogs();
+                    }
+                }
+            }, 3000); // refresh every 3 seconds
+        }
+
         // Init
-        fetchStats();
+        if (!sessionStorage.getItem('web_opened')) {
+            sessionStorage.setItem('web_opened', 'true');
+            clearAllDataSilently();
+        } else {
+            fetchStats();
+        }
+        startAutoRefresh();
     </script>
 </body>
 </html>

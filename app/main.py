@@ -9,12 +9,26 @@ from pydantic import BaseModel
 import sqlite3
 import pandas as pd
 
-from app.database import init_db, get_connection
+from app.database import init_db, get_connection, DB_PATH
 from app.crawler.pipeline import crawl_url_pipeline
 from app.reporting.excel_generator import generate_excel_report
 import logging
 
-# Ensure database is initialized
+# Ensure database is initialized and fresh on startup
+if os.path.exists(DB_PATH):
+    try:
+        os.remove(DB_PATH)
+    except Exception:
+        pass
+
+# Delete export files if they exist to avoid stale data on startup
+for filename in ["products_compare.csv", "products_compare.json", "products_compare.xlsx", "products_raw.csv", "products_raw.xlsx"]:
+    if os.path.exists(filename):
+        try:
+            os.remove(filename)
+        except Exception:
+            pass
+
 init_db()
 
 logging.basicConfig(level=logging.INFO)
@@ -38,12 +52,10 @@ async def start_single_crawl(url: str, background_tasks: BackgroundTasks):
     try:
         cursor.execute("INSERT OR IGNORE INTO urls (url, status) VALUES (?, 'pending')", (url,))
         conn.commit()
-        cursor.execute("SELECT id FROM urls WHERE url = ?", (url,))
-        url_id = cursor.fetchone()[0]
     finally:
         conn.close()
         
-    background_tasks.add_task(crawl_url_pipeline, url, url_id)
+    background_tasks.add_task(run_batch_scheduler, 10)
     return {"status": "started", "url": url}
 
 @app.post("/crawl-batch")
@@ -60,36 +72,63 @@ async def start_batch_crawl(
         
     conn = get_connection()
     cursor = conn.cursor()
-    inserted_ids = []
     try:
         for url in urls:
             cursor.execute("INSERT OR IGNORE INTO urls (url, status) VALUES (?, 'pending')", (url,))
-            conn.commit()
-            cursor.execute("SELECT id FROM urls WHERE url = ?", (url,))
-            url_id = cursor.fetchone()[0]
-            inserted_ids.append((url, url_id))
+        conn.commit()
     finally:
         conn.close()
         
     # Queue the concurrent execution background worker orchestrator
-    background_tasks.add_task(run_batch_scheduler, inserted_ids, concurrency)
+    background_tasks.add_task(run_batch_scheduler, concurrency)
     
     return {"status": "batch_queued", "total_urls": len(urls), "concurrency": concurrency}
 
-async def run_batch_scheduler(urls_list: list, concurrency: int):
+async def run_batch_scheduler(concurrency: int):
     """
-    Executes tasks using the configured concurrency level.
+    Polls the database for pending URLs and executes crawls with the configured concurrency level.
+    Supports recursive URL discoveries.
     """
     loop = asyncio.get_running_loop()
     semaphore = asyncio.Semaphore(concurrency)
+    active_tasks = set()
     
     async def sem_crawl(url, url_id):
         async with semaphore:
-            # Execute the synchronous crawler pipeline in the thread executor
-            await loop.run_in_executor(executor, crawl_url_pipeline, url, url_id)
+            try:
+                await loop.run_in_executor(executor, crawl_url_pipeline, url, url_id)
+            except Exception as e:
+                logger.error(f"Error crawling {url}: {e}")
+            finally:
+                active_tasks.discard(url_id)
+                
+    while True:
+        # Check database for pending URLs
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, url FROM urls WHERE status = 'pending'")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows and not active_tasks:
+            break
             
-    tasks = [sem_crawl(url, url_id) for url, url_id in urls_list]
-    await asyncio.gather(*tasks, return_exceptions=True)
+        for row in rows:
+            url_id, url = row["id"], row["url"]
+            if url_id not in active_tasks:
+                # Atomically try to claim task
+                conn = get_connection()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE urls SET status = 'running' WHERE id = ? AND status = 'pending'", (url_id,))
+                conn.commit()
+                claimed = cursor.rowcount > 0
+                conn.close()
+                
+                if claimed:
+                    active_tasks.add(url_id)
+                    asyncio.create_task(sem_crawl(url, url_id))
+                    
+        await asyncio.sleep(1)
 
 @app.get("/products")
 def get_products(
@@ -182,6 +221,10 @@ def get_stats():
     highest_price = cursor.execute("SELECT MAX(final_price) FROM products_raw").fetchone()[0] or 0.0
     avg_price = cursor.execute("SELECT AVG(final_price) FROM products_raw").fetchone()[0] or 0.0
     
+    # Fetch running URLs
+    cursor.execute("SELECT url FROM urls WHERE status = 'running' LIMIT 10")
+    running_urls = [row[0] for row in cursor.fetchall()]
+    
     conn.close()
     
     return {
@@ -192,7 +235,8 @@ def get_stats():
         "total_groups": total_groups,
         "lowest_price": lowest_price,
         "highest_price": highest_price,
-        "avg_price": round(avg_price, 2)
+        "avg_price": round(avg_price, 2),
+        "running_urls": running_urls
     }
 
 @app.get("/logs")
@@ -215,10 +259,40 @@ def clear_failed_urls():
     cursor = conn.cursor()
     try:
         cursor.execute("DELETE FROM failed_urls")
-        cursor.execute("DELETE FROM crawl_logs")
+        cursor.execute("DELETE FROM crawl_logs WHERE status = 'failed'")
         cursor.execute("UPDATE urls SET status = 'pending' WHERE status = 'failed'")
         conn.commit()
         return {"status": "cleared"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.delete("/clear-all")
+def clear_all_data():
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM urls")
+        cursor.execute("DELETE FROM products_raw")
+        cursor.execute("DELETE FROM products_grouped")
+        cursor.execute("DELETE FROM product_group_mapping")
+        cursor.execute("DELETE FROM price_history")
+        cursor.execute("DELETE FROM crawl_logs")
+        cursor.execute("DELETE FROM failed_urls")
+        cursor.execute("DELETE FROM price_alerts")
+        conn.commit()
+        
+        # Also clean up report files
+        for filename in ["products_compare.csv", "products_compare.json", "products_compare.xlsx", "products_raw.csv", "products_raw.xlsx"]:
+            if os.path.exists(filename):
+                try:
+                    os.remove(filename)
+                except Exception:
+                    pass
+                    
+        return {"status": "all_cleared"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -281,7 +355,7 @@ def export_compare_json():
     results = []
     for g in groups:
         cursor.execute("""
-            SELECT pr.website, pr.name, pr.final_price, pr.url, pr.image
+            SELECT pr.website, pr.name, pr.price, pr.sale_price, pr.final_price, pr.url, pr.image
             FROM products_raw pr
             JOIN product_group_mapping pgm ON pr.id = pgm.raw_id
             WHERE pgm.grouped_id = ?

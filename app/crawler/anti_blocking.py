@@ -34,3 +34,28 @@ def get_random_headers():
 
 def get_random_viewport():
     return random.choice(VIEWPORTS)
+
+def get_proxy_config():
+    try:
+        from app.database import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM settings")
+        settings = {row["key"]: row["value"] for row in cursor.fetchall()}
+        conn.close()
+        
+        host = settings.get("proxy_host")
+        port = settings.get("proxy_port")
+        user = settings.get("proxy_user")
+        pwd = settings.get("proxy_pass")
+        
+        if host and port:
+            return {
+                "host": host,
+                "port": port,
+                "user": user or "",
+                "pass": pwd or ""
+            }
+    except Exception:
+        pass
+    return None

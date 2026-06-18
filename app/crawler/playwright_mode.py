@@ -20,7 +20,25 @@ def fetch_with_playwright(url: str) -> dict:
         try:
             with sync_playwright() as p:
                 viewport = get_random_viewport()
-                browser = p.chromium.launch(headless=True)
+                
+                # Setup proxy from configurations
+                from app.crawler.anti_blocking import get_proxy_config
+                proxy_cfg = get_proxy_config()
+                proxy_args = {}
+                if proxy_cfg:
+                    host = proxy_cfg["host"]
+                    port = proxy_cfg["port"]
+                    user = proxy_cfg["user"]
+                    pwd = proxy_cfg["pass"]
+                    proxy_args["proxy"] = {
+                        "server": f"http://{host}:{port}"
+                    }
+                    if user:
+                        proxy_args["proxy"]["username"] = user
+                    if pwd:
+                        proxy_args["proxy"]["password"] = pwd
+                
+                browser = p.chromium.launch(headless=True, **proxy_args)
                 
                 # Setup context with randomized viewport & user agent
                 headers = get_random_headers()

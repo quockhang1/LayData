@@ -12,6 +12,28 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def extract_product_links(html_content: str, base_url: str) -> list:
+    from bs4 import BeautifulSoup
+    from urllib.parse import urljoin, urlparse
+    
+    soup = BeautifulSoup(html_content, "html.parser")
+    parsed_base = urlparse(base_url)
+    base_domain = parsed_base.netloc
+    
+    product_links = set()
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        if not href or href.startswith("#") or href.startswith("javascript:"):
+            continue
+        full_url = urljoin(base_url, href)
+        parsed_url = urlparse(full_url)
+        if parsed_url.netloc == base_domain and parsed_url.scheme in ("http", "https"):
+            if analyze_url_type(full_url) == "product":
+                clean_url = full_url.split("#")[0]
+                product_links.add(clean_url)
+                
+    return list(product_links)
+
 def crawl_url_pipeline(url: str, url_id: int = None) -> dict:
     """
     Crawling Pipeline orchestrator for each URL:
@@ -26,6 +48,141 @@ def crawl_url_pipeline(url: str, url_id: int = None) -> dict:
     
     # STEP 1: Analyze URL type
     url_type = analyze_url_type(url)
+    
+    if url_type != "product":
+        logger.info(f"URL is listing/category page: {url}. Extracting product links.")
+        html_content = ""
+        mode_used = "requests"
+        
+        # Try requests
+        try:
+            from app.crawler.request_mode import get_session, random_delay
+            from app.crawler.anti_blocking import get_random_headers
+            time.sleep(random_delay())
+            session = get_session(website)
+            session.headers.update(get_random_headers())
+            
+            # Setup proxy dynamically
+            from app.crawler.anti_blocking import get_proxy_config
+            proxy_cfg = get_proxy_config()
+            if proxy_cfg:
+                host = proxy_cfg["host"]
+                port = proxy_cfg["port"]
+                user = proxy_cfg["user"]
+                pwd = proxy_cfg["pass"]
+                if user and pwd:
+                    proxy_str = f"http://{user}:{pwd}@{host}:{port}"
+                else:
+                    proxy_str = f"http://{host}:{port}"
+                session.proxies = {
+                    "http": proxy_str,
+                    "https": proxy_str
+                }
+            else:
+                session.proxies = {}
+                
+            res = session.get(url, timeout=15, allow_redirects=True)
+            if res.status_code == 200:
+                html_content = res.text
+        except Exception as e:
+            logger.warning(f"Requests failed to fetch category {url}: {e}")
+            
+        # Try playwright
+        if not html_content:
+            logger.info(f"Falling back to Playwright for category {url}")
+            try:
+                from playwright.sync_api import sync_playwright
+                from app.crawler.anti_blocking import get_random_viewport, get_random_headers
+                from app.crawler.playwright_mode import _playwright_semaphore, scroll_to_end
+                with _playwright_semaphore:
+                    with sync_playwright() as p:
+                        viewport = get_random_viewport()
+                        proxy_cfg = get_proxy_config()
+                        proxy_args = {}
+                        if proxy_cfg:
+                            host = proxy_cfg["host"]
+                            port = proxy_cfg["port"]
+                            user = proxy_cfg["user"]
+                            pwd = proxy_cfg["pass"]
+                            proxy_args["proxy"] = {
+                                "server": f"http://{host}:{port}"
+                            }
+                            if user:
+                                proxy_args["proxy"]["username"] = user
+                            if pwd:
+                                proxy_args["proxy"]["password"] = pwd
+                                
+                        browser = p.chromium.launch(headless=True, **proxy_args)
+                        headers = get_random_headers()
+                        context = browser.new_context(
+                            user_agent=headers["User-Agent"],
+                            viewport=viewport,
+                            extra_http_headers={"Accept-Language": headers["Accept-Language"]}
+                        )
+                        page = context.new_page()
+                        page.goto(url, timeout=30000)
+                        try:
+                            page.wait_for_load_state("networkidle", timeout=5000)
+                        except Exception:
+                            pass
+                        scroll_to_end(page)
+                        html_content = page.content()
+                        browser.close()
+                        mode_used = "playwright"
+            except Exception as e:
+                logger.error(f"Playwright failed to fetch category {url}: {e}")
+                
+        if html_content:
+            product_links = extract_product_links(html_content, url)
+            logger.info(f"Discovered {len(product_links)} product links from {url}")
+            
+            # Save discovered links to the database as pending
+            conn = get_connection()
+            cursor = conn.cursor()
+            try:
+                inserted_count = 0
+                for link in product_links:
+                    cursor.execute("INSERT OR IGNORE INTO urls (url, status) VALUES (?, 'pending')", (link,))
+                    if cursor.rowcount > 0:
+                        inserted_count += 1
+                conn.commit()
+                logger.info(f"Inserted {inserted_count} new product URLs into database.")
+                
+                # Update status of this category URL to completed
+                if url_id:
+                    cursor.execute("UPDATE urls SET status = 'completed' WHERE id = ?", (url_id,))
+                
+                # Log success
+                cursor.execute("""
+                INSERT INTO crawl_logs (url, mode, status, products_found, execution_time)
+                VALUES (?, ?, ?, ?, ?)
+                """, (url, mode_used, "success", len(product_links), time.time() - start_time))
+                conn.commit()
+                return {"status": "success", "discovered_links": len(product_links)}
+            except Exception as e:
+                logger.error(f"Error saving discovered links for {url}: {e}")
+                conn.rollback()
+            finally:
+                conn.close()
+                
+        # Handle Failure
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            if url_id:
+                cursor.execute("UPDATE urls SET status = 'failed' WHERE id = ?", (url_id,))
+            cursor.execute("""
+            INSERT INTO crawl_logs (url, mode, status, products_found, execution_time, error_message)
+            VALUES (?, ?, ?, 0, ?, ?)
+            """, (url, mode_used, "failed", time.time() - start_time, "Failed to retrieve category page HTML"))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error logging failed category {url}: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
+            
+        return {"status": "failed", "reason": "Failed to fetch category page HTML"}
     
     # STEP 2: Requests Mode
     logger.info(f"Starting Requests Mode for {url}")
