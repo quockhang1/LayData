@@ -12,7 +12,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def extract_product_links(html_content: str, base_url: str) -> list:
+def extract_listing_links(html_content: str, base_url: str) -> tuple:
     from bs4 import BeautifulSoup
     from urllib.parse import urljoin, urlparse
     
@@ -20,7 +20,16 @@ def extract_product_links(html_content: str, base_url: str) -> list:
     parsed_base = urlparse(base_url)
     base_domain = parsed_base.netloc
     
+    # Clean up menus, headers, footers, etc. to avoid extracting main nav links
+    for tag in soup(["header", "footer", "nav", "aside", "script", "style", "iframe", "noscript"]):
+        tag.decompose()
+    for selector in [".header", ".footer", ".sidebar", ".menu", ".related", ".featured", "#header", "#footer", "#sidebar", ".comments", "#comments", ".accessory", ".accessories"]:
+        for el in soup.select(selector):
+            el.decompose()
+            
     product_links = set()
+    category_links = set()
+    
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
         if not href or href.startswith("#") or href.startswith("javascript:"):
@@ -28,11 +37,15 @@ def extract_product_links(html_content: str, base_url: str) -> list:
         full_url = urljoin(base_url, href)
         parsed_url = urlparse(full_url)
         if parsed_url.netloc == base_domain and parsed_url.scheme in ("http", "https"):
-            if analyze_url_type(full_url) == "product":
-                clean_url = full_url.split("#")[0]
+            clean_url = full_url.split("#")[0]
+            url_type = analyze_url_type(clean_url)
+            if url_type == "product":
                 product_links.add(clean_url)
-                
-    return list(product_links)
+            elif url_type == "category" or url_type == "search":
+                if clean_url != base_url.split("#")[0]:
+                    category_links.add(clean_url)
+                    
+    return list(product_links), list(category_links)
 
 def crawl_url_pipeline(url: str, url_id: int = None) -> dict:
     """
@@ -133,8 +146,8 @@ def crawl_url_pipeline(url: str, url_id: int = None) -> dict:
                 logger.error(f"Playwright failed to fetch category {url}: {e}")
                 
         if html_content:
-            product_links = extract_product_links(html_content, url)
-            logger.info(f"Discovered {len(product_links)} product links from {url}")
+            product_links, category_links = extract_listing_links(html_content, url)
+            logger.info(f"Discovered {len(product_links)} product links and {len(category_links)} subcategories/pages from {url}")
             
             # Save discovered links to the database as pending
             conn = get_connection()
@@ -145,8 +158,12 @@ def crawl_url_pipeline(url: str, url_id: int = None) -> dict:
                     cursor.execute("INSERT OR IGNORE INTO urls (url, status) VALUES (?, 'pending')", (link,))
                     if cursor.rowcount > 0:
                         inserted_count += 1
+                for link in category_links:
+                    cursor.execute("INSERT OR IGNORE INTO urls (url, status) VALUES (?, 'pending')", (link,))
+                    if cursor.rowcount > 0:
+                        inserted_count += 1
                 conn.commit()
-                logger.info(f"Inserted {inserted_count} new product URLs into database.")
+                logger.info(f"Inserted {inserted_count} new URLs into database.")
                 
                 # Update status of this category URL to completed
                 if url_id:
