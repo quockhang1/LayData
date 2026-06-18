@@ -214,26 +214,54 @@ def crawl_url_pipeline(url: str, url_id: int = None) -> dict:
             q_score = calculate_data_quality_score(product)
             product["data_quality_score"] = q_score
             
+            # Normalize fields to string to avoid sqlite binding errors for lists/dicts
+            def clean_db_field(val):
+                if val is None:
+                    return ""
+                if isinstance(val, (list, tuple)):
+                    items = []
+                    for v in val:
+                        if isinstance(v, dict):
+                            items.append(v.get("name") or v.get("title") or str(v))
+                        else:
+                            items.append(str(v))
+                    return ", ".join(items)
+                if isinstance(val, dict):
+                    return val.get("name") or val.get("title") or val.get("value") or str(val)
+                return str(val)
+
+            db_website = clean_db_field(product.get("website", website))
+            db_name = clean_db_field(product.get("name"))
+            db_model = clean_db_field(product.get("model"))
+            db_brand = clean_db_field(product.get("brand"))
+            db_sku = clean_db_field(product.get("sku"))
+            db_barcode = clean_db_field(product.get("barcode"))
+            db_image = clean_db_field(product.get("image"))
+            db_url = clean_db_field(product.get("url", url))
+            db_description = clean_db_field(product.get("description"))
+            db_category = clean_db_field(product.get("category"))
+            db_stock = clean_db_field(product.get("stock_status", "in_stock"))
+            
             cursor.execute("""
             INSERT OR REPLACE INTO products_raw 
             (url_id, website, name, model, brand, price, sale_price, final_price, sku, barcode, image, url, description, category, stock_status, data_quality_score)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 url_id,
-                product.get("website", website),
-                product["name"],
-                product.get("model"),
-                product.get("brand"),
-                product.get("price", 0.0),
-                product.get("sale_price", 0.0),
-                product["final_price"],
-                product.get("sku"),
-                product.get("barcode"),
-                product.get("image"),
-                product.get("url", url),
-                product.get("description"),
-                product.get("category"),
-                product.get("stock_status", "in_stock"),
+                db_website,
+                db_name,
+                db_model,
+                db_brand,
+                float(product.get("price") or 0.0),
+                float(product.get("sale_price") or 0.0),
+                float(product["final_price"]),
+                db_sku,
+                db_barcode,
+                db_image,
+                db_url,
+                db_description,
+                db_category,
+                db_stock,
                 q_score
             ))
             raw_id = cursor.lastrowid

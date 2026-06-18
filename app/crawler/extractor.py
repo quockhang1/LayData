@@ -167,6 +167,13 @@ def extract_custom_html_product(soup: BeautifulSoup, url: str) -> dict:
     - Price: Finds elements containing 'đ', 'VND', or similar matching pattern.
     - Image: Finds main visual img (often has product, detailed, zoom class, or largest dimensions).
     """
+    # Remove header, footer, nav, aside, script, style, related products to avoid noise
+    for tag in soup(["header", "footer", "nav", "aside", "script", "style", "iframe", "noscript"]):
+        tag.decompose()
+    for selector in [".header", ".footer", ".sidebar", ".menu", ".related", ".featured", "#header", "#footer", "#sidebar", ".comments", "#comments", ".accessory", ".accessories"]:
+        for el in soup.select(selector):
+            el.decompose()
+            
     # Name
     title_el = soup.find("h1")
     name = title_el.text.strip() if title_el else ""
@@ -175,23 +182,57 @@ def extract_custom_html_product(soup: BeautifulSoup, url: str) -> dict:
     price = 0.0
     sale_price = 0.0
     
-    # Look for currency indicators
-    price_elements = soup.find_all(text=re.compile(r'\d+[\d.,]*\s*(?:đ|VND|VNĐ|Vnđ|\$)', re.IGNORECASE))
-    prices_found = []
-    for el in price_elements:
-        p_val = clean_price_string(el)
-        if p_val > 1000:  # Avoid small false positive numbers
-            prices_found.append(p_val)
-            
-    if len(prices_found) >= 2:
-        # E-commerce details typically list Sale Price first or in larger size, and Original Price.
-        # Let's assign lowest as sale, highest as regular.
-        prices_found = sorted(list(set(prices_found)))
-        sale_price = prices_found[0]
-        price = prices_found[-1]
-    elif len(prices_found) == 1:
-        price = prices_found[0]
+    # Try finding specific elements first
+    del_tag = soup.find("del") or soup.find(class_=re.compile(r'\b(?:old-price|price-old|original-price|compare-at-price|regular-price|price-regular|price-compare)\b', re.IGNORECASE))
+    new_price_el = soup.find(class_=re.compile(r'\b(?:special-price|sale-price|price-sale|new-price|price-new|current-price|price-current|price-amount|price-final)\b', re.IGNORECASE))
+    
+    if del_tag:
+        price = clean_price_string(del_tag.text)
+    if new_price_el:
+        sale_price = clean_price_string(new_price_el.text)
         
+    # Fallback to regex search in clean body text
+    if price == 0.0 or sale_price == 0.0:
+        price_elements = soup.find_all(text=re.compile(r'\d+[\d.,]*\s*(?:đ|VND|VNĐ|Vnđ|\$)', re.IGNORECASE))
+        prices_found = []
+        for el in price_elements:
+            p_val = clean_price_string(el)
+            if p_val > 1000 and p_val < 1000000000:  # ignore hotlines and huge numbers
+                prices_found.append(p_val)
+                
+        unique_prices = []
+        for p in prices_found:
+            if p not in unique_prices:
+                unique_prices.append(p)
+                
+        if len(unique_prices) >= 2:
+            sorted_prices = sorted(unique_prices)
+            if price > 0.0 and sale_price == 0.0:
+                lower_prices = [p for p in sorted_prices if p < price]
+                if lower_prices:
+                    sale_price = lower_prices[-1]
+            elif sale_price > 0.0 and price == 0.0:
+                higher_prices = [p for p in sorted_prices if p > sale_price]
+                if higher_prices:
+                    price = higher_prices[0]
+            else:
+                # No specific elements, just regular price. Do not assume discount.
+                price = unique_prices[0]
+                sale_price = 0.0
+        elif len(unique_prices) == 1:
+            if price == 0.0 and sale_price == 0.0:
+                price = unique_prices[0]
+            elif sale_price > 0.0:
+                price = sale_price
+                sale_price = 0.0
+                
+    # Normalize price and sale price relationship
+    if price > 0.0 and sale_price > 0.0:
+        if price < sale_price:
+            price, sale_price = sale_price, price
+        elif price == sale_price:
+            sale_price = 0.0
+            
     # Image
     images = soup.find_all("img")
     image_url = ""
@@ -207,7 +248,6 @@ def extract_custom_html_product(soup: BeautifulSoup, url: str) -> dict:
             image_url = urljoin(url, src)
             break
     if not image_url and images:
-        # Default to first decent-sized image
         image_url = urljoin(url, images[0].get("src", ""))
         
     # Brand heuristics
@@ -245,18 +285,29 @@ def auto_extract_product_details(html_content: str, url: str) -> dict:
     json_ld_products = extract_json_ld(soup)
     if json_ld_products:
         prod = json_ld_products[0]
-        # Fallback to metadata image/og:image if JSON-LD image is empty
         meta = extract_meta_tags(soup)
         if not prod.get("image"):
             prod["image"] = meta.get("image") or ""
-        # Make sure image url is absolute
         if prod.get("image"):
             prod["image"] = urljoin(url, prod["image"])
-        # Deduce final price priority rules
+            
+        # Try checking for original price (crossed out) in HTML to detect promotion
+        del_tag = soup.find("del") or soup.find(class_=re.compile(r'\b(?:old-price|price-old|original-price|compare-at-price|regular-price|price-regular|price-compare)\b', re.IGNORECASE))
+        if del_tag:
+            orig_price = clean_price_string(del_tag.text)
+            if orig_price > prod.get("price", 0.0) and orig_price < 1000000000:
+                prod["sale_price"] = prod["price"]
+                prod["price"] = orig_price
+            else:
+                prod["sale_price"] = 0.0
+        else:
+            prod["sale_price"] = 0.0
+            
         if prod.get("sale_price", 0) > 0:
             prod["final_price"] = prod["sale_price"]
         else:
             prod["final_price"] = prod.get("price", 0.0)
+            
         prod["website"] = urlparse(url).netloc
         prod["url"] = url
         if not prod.get("barcode"):
@@ -276,20 +327,17 @@ def auto_extract_product_details(html_content: str, url: str) -> dict:
         "model": extract_model(meta.get("name") or custom.get("name") or ""),
         "sku": "",
         "barcode": meta.get("barcode") or custom.get("barcode") or "",
-        "price": meta.get("price") or custom.get("price") or 0.0,
+        "price": custom.get("price") if custom.get("sale_price", 0) > 0 else (meta.get("price") or custom.get("price") or 0.0),
         "sale_price": custom.get("sale_price") or 0.0,
         "image": meta.get("image") or custom.get("image") or "",
         "description": meta.get("description") or ""
     }
     
-    # Deduce final price priority rules
-    # "If sale price exists, final_price = sale_price. Else final_price = regular_price"
     if final_prod["sale_price"] > 0:
         final_prod["final_price"] = final_prod["sale_price"]
     else:
         final_prod["final_price"] = final_prod["price"]
         
-    # Domain as website
     parsed = urlparse(url)
     final_prod["website"] = parsed.netloc
     final_prod["url"] = url
